@@ -140,3 +140,7 @@ src/
 - **Hüseyin Çınar** - Mobile Developer
 - Email: huseyin-cinar@outlook.com
 - GitHub: [@codebycinar](https://github.com/codebycinar)
+
+## 📄 Lisans
+
+Bu proje MIT lisansı altında lisanslanmıştır.

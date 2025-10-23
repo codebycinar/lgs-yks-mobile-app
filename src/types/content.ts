@@ -1,78 +1,87 @@
 export interface Exam {
-  id: number;
+  id: string;
   name: string;
-  examDate: string;
+  examDate: string | null;
   targetClassLevels: number[];
   prepClassLevels: number[];
   isActive: boolean;
-  description?: string;
+  description?: string | null;
 }
 
 export interface Class {
-  id: number;
+  id: string;
   name: string;
   minClassLevel: number;
   maxClassLevel: number;
-  examId?: number;
-  examName?: string;
+  examId?: string | null;
+  examName?: string | null;
   isActive: boolean;
 }
 
 export interface Subject {
-  id: number;
+  id: string;
   name: string;
   orderIndex: number;
   isActive: boolean;
 }
 
 export interface Topic {
-  id: number;
+  id: string;
   name: string;
-  subjectId: number;
+  subjectId: string;
   subjectName: string;
-  classId: number;
+  classId: string;
   className: string;
-  parentId?: number;
-  parentName?: string;
+  parentId?: string | null;
+  parentName?: string | null;
   orderIndex: number;
   isActive: boolean;
+  status?: 'not_started' | 'in_progress' | 'learned' | 'needs_review';
+  updatedAt?: string | null;
 }
 
 export interface UserTopicProgress {
-  userId: number;
-  topicId: number;
+  topicId: string;
   status: 'not_started' | 'in_progress' | 'learned' | 'needs_review';
-  updatedAt: string;
+  updatedAt: string | null;
 }
 
 export interface Goal {
-  id: number;
-  userId: number;
+  id: string;
+  title: string;
   description: string;
-  targetDate?: string;
+  targetDate?: string | null;
   isCompleted: boolean;
-  completedAt?: string;
+  completedAt?: string | null;
   createdAt: string;
+  isOverdue?: boolean;
+  daysRemaining?: number | null;
 }
 
 export interface WeeklyProgram {
-  id: number;
-  userId: number;
+  id: string;
+  title: string;
   startDate: string;
   endDate: string;
-  title: string;
   createdAt: string;
+  totalTasks: number;
+  completedTasks: number;
+  completionPercentage: number;
+  isCurrentWeek: boolean;
   tasks: ProgramTask[];
 }
 
 export interface ProgramTask {
-  id: number;
-  weeklyProgramId: number;
+  id: string;
+  weeklyProgramId: string;
+  title: string;
   description: string;
   taskDate: string;
   isCompleted: boolean;
-  completedAt?: string;
-  topicId?: number;
-  topicName?: string;
+  completedAt?: string | null;
+  topicId?: string | null;
+  topicName?: string | null;
+  subjectName?: string | null;
   createdAt: string;
 }
+

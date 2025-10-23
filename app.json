@@ -1,4 +1,38 @@
 {
-  "name": "LGSMobileApp",
-  "displayName": "LGSMobileApp"
+  "expo": {
+    "name": "LGSMobileApp",
+    "slug": "lgs-yks-mobile-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "lgsmobileapp",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": []
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font"
+    ],
+    "extra": {
+      "apiUrl": "http://192.168.1.123:3000/api"
+    }
+  }
 }

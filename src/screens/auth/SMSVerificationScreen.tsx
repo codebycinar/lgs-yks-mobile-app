@@ -16,70 +16,64 @@ import {
   useTheme,
 } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SMSVerificationScreenProps {
   navigation: any;
   route: any;
 }
 
-const SMSVerificationScreen: React.FC<SMSVerificationScreenProps> = ({
-  navigation,
-  route,
-}) => {
+const SMSVerificationScreen: React.FC<SMSVerificationScreenProps> = ({ navigation, route }) => {
   const theme = useTheme();
   const { verifySMS, resendSMS } = useAuth();
-  const { phoneNumber, isLogin } = route.params;
-  
+  const { phoneNumber, registrationData } = route.params;
+  const insets = useSafeAreaInsets();
+
   const [verificationCode, setVerificationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  
+
   const inputRef = useRef<any>(null);
 
   useEffect(() => {
-    // Sayaç başlat
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      const timer = setTimeout(() => setCountdown((value) => value - 1), 1000);
       return () => clearTimeout(timer);
-    } else {
-      setCanResend(true);
     }
+    setCanResend(true);
   }, [countdown]);
 
   useEffect(() => {
-    // Ekran açıldığında input'a focus yap
-    setTimeout(() => {
+    const handle = setTimeout(() => {
       inputRef.current?.focus();
-    }, 500);
+    }, 300);
+    return () => clearTimeout(handle);
   }, []);
 
   const handleVerify = async () => {
     setError('');
-    
+
     if (verificationCode.length !== 6) {
-      setError('Doğrulama kodu 6 haneli olmalıdır');
+      setError('Dogrulama kodu 6 haneli olmalidir');
       return;
     }
 
     try {
       setLoading(true);
-      await verifySMS(phoneNumber, verificationCode);
-      
-      // Başarılı doğrulama sonrası ana ekrana yönlendir
-      // Navigation reset yaparak geri butonunu kaldır
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
+      await verifySMS({
+        phoneNumber,
+        verificationCode,
+        name: registrationData?.name,
+        surname: registrationData?.surname,
+        classId: registrationData?.classId,
+        gender: registrationData?.gender,
       });
-    } catch (error: any) {
-      console.error('SMS verification error:', error);
-      setError(
-        error.response?.data?.message || 
-        'Doğrulama kodu hatalı. Lütfen tekrar deneyin.'
-      );
+    } catch (err: any) {
+      console.error('SMS verification error:', err);
+      setError(err?.response?.data?.message || 'Dogrulama kodu hatali. Lutfen tekrar deneyin.');
     } finally {
       setLoading(false);
     }
@@ -89,116 +83,95 @@ const SMSVerificationScreen: React.FC<SMSVerificationScreenProps> = ({
     try {
       setResendLoading(true);
       await resendSMS(phoneNumber);
-      
-      // Sayaçı sıfırla
       setCountdown(60);
       setCanResend(false);
       setError('');
-      
-    } catch (error: any) {
-      console.error('Resend SMS error:', error);
-      setError(
-        error.response?.data?.message || 
-        'SMS gönderilirken hata oluştu. Lütfen tekrar deneyin.'
-      );
+      setVerificationCode('');
+    } catch (err: any) {
+      console.error('Resend SMS error:', err);
+      setError(err?.response?.data?.message || 'Kod gonderilirken hata olustu. Lutfen tekrar deneyin.');
     } finally {
       setResendLoading(false);
     }
   };
 
   const handleCodeChange = (text: string) => {
-    // Sadece rakamları al ve 6 karakterle sınırla
     const cleaned = text.replace(/\D/g, '').slice(0, 6);
     setVerificationCode(cleaned);
     if (error) setError('');
-    
-    // 6 karakter girildiğinde otomatik doğrula
+
     if (cleaned.length === 6) {
       setTimeout(() => {
         handleVerify();
-      }, 500);
+      }, 300);
     }
   };
 
-  const formatPhoneNumber = (phone: string) => {
-    return `+90 ${phone.slice(0, 3)} ${phone.slice(3, 6)} ${phone.slice(6)}`;
-  };
+  const formatPhoneNumber = (phone: string) => `+90 ${phone.slice(0, 3)} ${phone.slice(3, 6)} ${phone.slice(6)}`;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <SafeAreaView
+      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      edges={['top', 'bottom']}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Title style={[styles.title, { color: theme.colors.primary }]}>
-            Doğrulama Kodu
-          </Title>
+          <Title style={[styles.title, { color: theme.colors.primary }]}>Dogrulama Kodu</Title>
           <Paragraph style={styles.subtitle}>
-            {formatPhoneNumber(phoneNumber)} numarasına gönderilen 6 haneli kodu girin
+            {formatPhoneNumber(phoneNumber)} numarasina gonderilen 6 haneli kodu girin.
           </Paragraph>
 
           <Card style={styles.card}>
             <Card.Content>
               <TextInput
                 ref={inputRef}
-                label=\"Doğrulama Kodu\"
+                label="Dogrulama Kodu"
                 value={verificationCode}
                 onChangeText={handleCodeChange}
-                mode=\"outlined\"
-                keyboardType=\"number-pad\"
-                placeholder=\"000000\"
+                mode="outlined"
+                keyboardType="number-pad"
+                placeholder="000000"
                 maxLength={6}
-                error={!!error}
+                error={Boolean(error)}
                 style={styles.input}
-                autoFocus
               />
-              <HelperText type=\"error\" visible={!!error}>
+              <HelperText type="error" visible={Boolean(error)}>
                 {error}
               </HelperText>
-              
+
               <Button
-                mode=\"contained\"
+                mode="contained"
                 onPress={handleVerify}
                 loading={loading}
                 disabled={loading || verificationCode.length !== 6}
                 style={styles.button}
                 contentStyle={styles.buttonContent}
               >
-                Doğrula
+                Dogrula
               </Button>
             </Card.Content>
           </Card>
 
           <View style={styles.resendSection}>
             {!canResend ? (
-              <Paragraph style={styles.countdownText}>
-                Yeniden gönder ({countdown}s)
-              </Paragraph>
+              <Paragraph style={styles.countdownText}>Yeniden gonder ({countdown}s)</Paragraph>
             ) : (
-              <Button
-                mode=\"text\"
-                onPress={handleResend}
-                loading={resendLoading}
-                disabled={resendLoading}
-              >
-                Kodu Yeniden Gönder
+              <Button mode="text" onPress={handleResend} loading={resendLoading} disabled={resendLoading}>
+                Kodu Yeniden Gonder
               </Button>
             )}
           </View>
 
           <View style={styles.backSection}>
-            <Button
-              mode=\"text\"
-              onPress={() => navigation.goBack()}
-              disabled={loading || resendLoading}
-            >
-              Telefon Numarasını Değiştir
+            <Button mode="text" onPress={() => navigation.goBack()} disabled={loading || resendLoading}>
+              Telefon Numarasini Degistir
             </Button>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -206,6 +179,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  flex: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,

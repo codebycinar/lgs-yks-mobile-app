@@ -1,25 +1,27 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import AuthNavigator from './AuthNavigator';
+import OnboardingNavigator from './OnboardingNavigator';
 import MainNavigator from './MainNavigator';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 export type RootStackParamList = {
   Auth: undefined;
+  Onboarding: undefined;
   Main: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 const RootNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isOnboarded } = useAuth();
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size=\"large\" color=\"#6200ee\" />
+        <ActivityIndicator size="large" color="#6200ee" />
       </View>
     );
   }
@@ -27,10 +29,12 @@ const RootNavigator: React.FC = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isAuthenticated ? (
-          <Stack.Screen name=\"Main\" component={MainNavigator} />
+        {!isAuthenticated ? (
+          <Stack.Screen name="Auth" component={AuthNavigator} />
+        ) : !isOnboarded ? (
+          <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
         ) : (
-          <Stack.Screen name=\"Auth\" component={AuthNavigator} />
+          <Stack.Screen name="Main" component={MainNavigator} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
@@ -47,3 +51,4 @@ const styles = StyleSheet.create({
 });
 
 export default RootNavigator;
+

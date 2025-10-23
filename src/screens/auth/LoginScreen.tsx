@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,7 @@ import {
   useTheme,
 } from 'react-native-paper';
 import { useAuth } from '../../contexts/AuthContext';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface LoginScreenProps {
   navigation: any;
@@ -25,58 +25,44 @@ interface LoginScreenProps {
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const theme = useTheme();
   const { login } = useAuth();
+  const insets = useSafeAreaInsets();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Telefon numarası formatla (Türkiye formatı)
   const formatPhoneNumber = (text: string) => {
-    // Sadece rakamları al
     const cleaned = text.replace(/\D/g, '');
-    
-    // 90 ile başlıyorsa kaldır
+
     let formatted = cleaned.startsWith('90') ? cleaned.slice(2) : cleaned;
-    
-    // 0 ile başlıyorsa kaldır
     formatted = formatted.startsWith('0') ? formatted.slice(1) : formatted;
-    
-    // 5 ile başlamalı ve 10 karakter olmalı
+
     if (formatted.length <= 10 && (formatted.startsWith('5') || formatted === '')) {
       return formatted;
     }
-    
+
     return phoneNumber.replace(/\D/g, '');
   };
 
-  const validatePhoneNumber = (phone: string) => {
-    // Türk telefon numarası: 5xxxxxxxxx (10 karakter)
-    const phoneRegex = /^5[0-9]{9}$/;
-    return phoneRegex.test(phone);
-  };
+  const validatePhoneNumber = (phone: string) => /^5[0-9]{9}$/.test(phone);
 
   const handleLogin = async () => {
     setError('');
-    
+
     if (!validatePhoneNumber(phoneNumber)) {
-      setError('Geçerli bir telefon numarası girin (5xxxxxxxxx)');
+      setError('Gecerli bir telefon numarasi girin (5xxxxxxxxx)');
       return;
     }
 
     try {
       setLoading(true);
       await login(phoneNumber);
-      
-      // SMS doğrulama ekranına yönlendir
       navigation.navigate('SMSVerification', {
         phoneNumber,
         isLogin: true,
       });
-    } catch (error: any) {
-      console.error('Login error:', error);
-      setError(
-        error.response?.data?.message || 
-        'Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.'
-      );
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err?.response?.data?.message || 'Giris yapilirken bir hata olustu. Lutfen tekrar deneyin.');
     } finally {
       setLoading(false);
     }
@@ -89,65 +75,60 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <SafeAreaView
+      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      edges={['top', 'bottom']}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Title style={[styles.title, { color: theme.colors.primary }]}>
-            LGS Eğitim Platformu
-          </Title>
-          <Paragraph style={styles.subtitle}>
-            Telefon numaranız ile giriş yapın
-          </Paragraph>
+          <Title style={[styles.title, { color: theme.colors.primary }]}>LGS Egitim Platformu</Title>
+          <Paragraph style={styles.subtitle}>Telefon numaraniz ile giris yapin</Paragraph>
 
           <Card style={styles.card}>
             <Card.Content>
               <TextInput
-                label=\"Telefon Numarası\"
+                label="Telefon Numarasi"
                 value={phoneNumber}
                 onChangeText={handlePhoneChange}
-                mode=\"outlined\"
-                keyboardType=\"phone-pad\"
-                placeholder=\"5xxxxxxxxx\"
+                mode="outlined"
+                keyboardType="phone-pad"
+                placeholder="5xxxxxxxxx"
                 maxLength={10}
-                left={<TextInput.Affix text=\"+90 \" />}
-                error={!!error}
+                left={<TextInput.Affix text="+90 " />}
+                error={Boolean(error)}
                 style={styles.input}
               />
-              <HelperText type=\"error\" visible={!!error}>
+              <HelperText type="error" visible={Boolean(error)}>
                 {error}
               </HelperText>
-              
+
               <Button
-                mode=\"contained\"
+                mode="contained"
                 onPress={handleLogin}
                 loading={loading}
                 disabled={loading || phoneNumber.length !== 10}
                 style={styles.button}
                 contentStyle={styles.buttonContent}
               >
-                Giriş Yap
+                Giris Yap
               </Button>
             </Card.Content>
           </Card>
 
           <View style={styles.registerSection}>
-            <Paragraph style={styles.registerText}>
-              Hesabınız yok mu?
-            </Paragraph>
-            <Button
-              mode=\"text\"
-              onPress={() => navigation.navigate('Register')}
-              disabled={loading}
-            >
-              Kayıt Ol
+            <Paragraph style={styles.registerText}>Hesabiniz yok mu?</Paragraph>
+            <Button mode="text" onPress={() => navigation.navigate('Register')} disabled={loading}>
+              Kayit Ol
             </Button>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -155,6 +136,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  flex: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,

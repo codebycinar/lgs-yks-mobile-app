@@ -17,12 +17,12 @@ const OnboardingNavigator: React.FC = () => (
     <Stack.Screen
       name="Intro"
       component={OnboardingIntroScreen}
-      options={{ title: 'Hedeflerini Planla' }}
+      options={{ title: 'Hedef Planlama' }}
     />
     <Stack.Screen
       name="Availability"
       component={OnboardingAvailabilityScreen}
-      options={{ title: 'Müsaitlik Saatlerin' }}
+      options={{ title: 'Musaitlik Saatleri' }}
     />
     <Stack.Screen
       name="Summary"

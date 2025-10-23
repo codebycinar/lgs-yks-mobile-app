@@ -1,13 +1,14 @@
 export interface User {
-  id: number;
+  id: string;
   phoneNumber: string;
   name: string;
   surname: string;
   gender: 'male' | 'female';
-  classId?: number;
-  className?: string;
-  examId?: number;
-  examName?: string;
+  classId?: string | null;
+  className?: string | null;
+  examId?: string | null;
+  examName?: string | null;
+  examDate?: string | null;
   createdAt: string;
 }
 
@@ -19,13 +20,17 @@ export interface RegisterRequest {
   phoneNumber: string;
   name: string;
   surname: string;
-  classId: number;
+  classId: string;
   gender: 'male' | 'female';
 }
 
 export interface VerifySMSRequest {
   phoneNumber: string;
   verificationCode: string;
+  name?: string;
+  surname?: string;
+  classId?: string;
+  gender?: 'male' | 'female';
 }
 
 export interface AuthResponse {
@@ -37,3 +42,4 @@ export interface SMSResponse {
   message: string;
   expiresAt: string;
 }
+

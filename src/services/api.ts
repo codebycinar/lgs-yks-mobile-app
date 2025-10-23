@@ -1,47 +1,61 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-const BASE_URL = 'http://10.0.2.2:3000/api'; // Android emulator localhost
+const resolveBaseUrl = (): string => {
+  const extra = Constants.expoConfig?.extra ?? {};
+  const explicit = extra.apiUrl ?? process.env.EXPO_PUBLIC_API_URL;
+  if (explicit && typeof explicit === 'string' && explicit.trim().length > 0) {
+    return explicit.trim();
+  }
+  return 'http://10.0.2.2:3000/api';
+};
 
 const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 10000,
+  baseURL: resolveBaseUrl(),
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Token'ı otomatik olarak header'a ekle
 api.interceptors.request.use(
   async (config) => {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+        const headers = config.headers ?? new AxiosHeaders();
+        if (headers instanceof AxiosHeaders) {
+          headers.set('Authorization', `Bearer ${token}`);
+        } else {
+          (headers as Record<string, string>).Authorization = `Bearer ${token}`;
+        }
+        config.headers = headers;
       }
     } catch (error) {
-      console.error('Token alınırken hata:', error);
+      console.error('Token okunurken hata:', error);
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
-// Response interceptor - token süresi dolmuşsa logout yap
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Token geçersiz, kullanıcıyı logout yap
       await AsyncStorage.removeItem('auth_token');
       await AsyncStorage.removeItem('user_data');
     }
+
+    if (error.message === 'Network Error') {
+      console.warn(
+        'API baglantisi saglanamadi. Expo uygulamasindan istek atiyorsan, app.json extra.apiUrl degerinin makineni isaret ettiginden emin ol.',
+      );
+    }
+
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

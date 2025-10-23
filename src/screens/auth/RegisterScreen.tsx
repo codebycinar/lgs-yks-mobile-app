@@ -21,6 +21,7 @@ import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../../contexts/AuthContext';
 import contentService from '../../services/contentService';
 import { Class } from '../../types/content';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface RegisterScreenProps {
   navigation: any;
@@ -29,17 +30,18 @@ interface RegisterScreenProps {
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const theme = useTheme();
   const { register } = useAuth();
-  
+  const insets = useSafeAreaInsets();
+
   const [phoneNumber, setPhoneNumber] = useState('');
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const [gender, setGender] = useState<'male' | 'female'>('male');
-  const [classId, setClassId] = useState<number>(0);
+  const [classId, setClassId] = useState<string>('');
   const [classes, setClasses] = useState<Class[]>([]);
-  
+
   const [loading, setLoading] = useState(false);
   const [loadingClasses, setLoadingClasses] = useState(true);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadClasses();
@@ -49,9 +51,9 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     try {
       setLoadingClasses(true);
       const classesData = await contentService.getClasses();
-      setClasses(classesData.filter(c => c.isActive));
+      setClasses(classesData.filter((item) => item.isActive));
     } catch (error) {
-      console.error('Sınıflar yüklenirken hata:', error);
+      console.error('Siniflar yuklenirken hata:', error);
     } finally {
       setLoadingClasses(false);
     }
@@ -61,41 +63,37 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     const cleaned = text.replace(/\D/g, '');
     let formatted = cleaned.startsWith('90') ? cleaned.slice(2) : cleaned;
     formatted = formatted.startsWith('0') ? formatted.slice(1) : formatted;
-    
+
     if (formatted.length <= 10 && (formatted.startsWith('5') || formatted === '')) {
       return formatted;
     }
-    
+
     return phoneNumber.replace(/\D/g, '');
   };
 
   const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
+    const newErrors: Record<string, string> = {};
 
-    // Telefon numarası kontrolü
     if (!phoneNumber) {
-      newErrors.phoneNumber = 'Telefon numarası gerekli';
+      newErrors.phoneNumber = 'Telefon numarasi gerekli';
     } else if (!/^5[0-9]{9}$/.test(phoneNumber)) {
-      newErrors.phoneNumber = 'Geçerli bir telefon numarası girin';
+      newErrors.phoneNumber = 'Gecerli bir telefon numarasi girin';
     }
 
-    // Ad kontrolü
     if (!name.trim()) {
       newErrors.name = 'Ad gerekli';
     } else if (name.trim().length < 2) {
-      newErrors.name = 'Ad en az 2 karakter olmalı';
+      newErrors.name = 'Ad en az 2 karakter olmali';
     }
 
-    // Soyad kontrolü
     if (!surname.trim()) {
       newErrors.surname = 'Soyad gerekli';
     } else if (surname.trim().length < 2) {
-      newErrors.surname = 'Soyad en az 2 karakter olmalı';
+      newErrors.surname = 'Soyad en az 2 karakter olmali';
     }
 
-    // Sınıf kontrolü
     if (!classId) {
-      newErrors.classId = 'Sınıf seçimi gerekli';
+      newErrors.classId = 'Sinif secimi gerekli';
     }
 
     setErrors(newErrors);
@@ -103,7 +101,9 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   };
 
   const handleRegister = async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     try {
       setLoading(true);
@@ -114,20 +114,24 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
         classId,
         gender,
       });
-      
-      // SMS doğrulama ekranına yönlendir
+
       navigation.navigate('SMSVerification', {
         phoneNumber,
         isLogin: false,
+        registrationData: {
+          name: name.trim(),
+          surname: surname.trim(),
+          classId,
+          gender,
+        },
       });
     } catch (error: any) {
       console.error('Register error:', error);
-      const errorMessage = error.response?.data?.message || 
-        'Kayıt olurken bir hata oluştu. Lütfen tekrar deneyin.';
-      
-      // Telefon numarası zaten kayıtlıysa özel mesaj
-      if (errorMessage.includes('phone') || errorMessage.includes('telefon')) {
-        setErrors({ phoneNumber: 'Bu telefon numarası zaten kayıtlı' });
+      const errorMessage =
+        error?.response?.data?.message || 'Kayit olurken bir hata olustu. Lutfen tekrar deneyin.';
+
+      if (errorMessage.toLowerCase().includes('phone') || errorMessage.toLowerCase().includes('telefon')) {
+        setErrors({ phoneNumber: 'Bu telefon numarasi zaten kayitli' });
       } else {
         setErrors({ general: errorMessage });
       }
@@ -140,91 +144,87 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     const formatted = formatPhoneNumber(text);
     setPhoneNumber(formatted);
     if (errors.phoneNumber) {
-      setErrors(prev => ({ ...prev, phoneNumber: '' }));
+      setErrors((prev) => ({ ...prev, phoneNumber: '' }));
     }
   };
 
   const handleNameChange = (text: string) => {
     setName(text);
     if (errors.name) {
-      setErrors(prev => ({ ...prev, name: '' }));
+      setErrors((prev) => ({ ...prev, name: '' }));
     }
   };
 
   const handleSurnameChange = (text: string) => {
     setSurname(text);
     if (errors.surname) {
-      setErrors(prev => ({ ...prev, surname: '' }));
+      setErrors((prev) => ({ ...prev, surname: '' }));
     }
   };
 
-  const handleClassChange = (value: number) => {
+  const handleClassChange = (value: string) => {
     setClassId(value);
     if (errors.classId) {
-      setErrors(prev => ({ ...prev, classId: '' }));
+      setErrors((prev) => ({ ...prev, classId: '' }));
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <SafeAreaView
+      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      edges={['top', 'bottom']}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Title style={[styles.title, { color: theme.colors.primary }]}>
-            Hesap Oluştur
-          </Title>
-          <Paragraph style={styles.subtitle}>
-            Bilgilerinizi girerek kayıt olun
-          </Paragraph>
+          <Title style={[styles.title, { color: theme.colors.primary }]}>Hesap Olustur</Title>
+          <Paragraph style={styles.subtitle}>Bilgilerinizi girerek kayit olun</Paragraph>
 
           <Card style={styles.card}>
             <Card.Content>
-              {/* Telefon Numarası */}
               <TextInput
-                label=\"Telefon Numarası\"
+                label="Telefon Numarasi"
                 value={phoneNumber}
                 onChangeText={handlePhoneChange}
-                mode=\"outlined\"
-                keyboardType=\"phone-pad\"
-                placeholder=\"5xxxxxxxxx\"
+                mode="outlined"
+                keyboardType="phone-pad"
+                placeholder="5xxxxxxxxx"
                 maxLength={10}
-                left={<TextInput.Affix text=\"+90 \" />}
-                error={!!errors.phoneNumber}
+                left={<TextInput.Affix text="+90 " />}
+                error={Boolean(errors.phoneNumber)}
                 style={styles.input}
               />
-              <HelperText type=\"error\" visible={!!errors.phoneNumber}>
+              <HelperText type="error" visible={Boolean(errors.phoneNumber)}>
                 {errors.phoneNumber}
               </HelperText>
 
-              {/* Ad */}
               <TextInput
-                label=\"Ad\"
+                label="Ad"
                 value={name}
                 onChangeText={handleNameChange}
-                mode=\"outlined\"
-                error={!!errors.name}
+                mode="outlined"
+                error={Boolean(errors.name)}
                 style={styles.input}
               />
-              <HelperText type=\"error\" visible={!!errors.name}>
+              <HelperText type="error" visible={Boolean(errors.name)}>
                 {errors.name}
               </HelperText>
 
-              {/* Soyad */}
               <TextInput
-                label=\"Soyad\"
+                label="Soyad"
                 value={surname}
                 onChangeText={handleSurnameChange}
-                mode=\"outlined\"
-                error={!!errors.surname}
+                mode="outlined"
+                error={Boolean(errors.surname)}
                 style={styles.input}
               />
-              <HelperText type=\"error\" visible={!!errors.surname}>
+              <HelperText type="error" visible={Boolean(errors.surname)}>
                 {errors.surname}
               </HelperText>
 
-              {/* Cinsiyet */}
               <View style={styles.genderSection}>
                 <Paragraph style={styles.genderLabel}>Cinsiyet</Paragraph>
                 <RadioButton.Group
@@ -233,12 +233,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                 >
                   <View style={styles.genderOptions}>
                     <View style={styles.genderOption}>
-                      <RadioButton value=\"male\" />
+                      <RadioButton value="male" />
                       <Paragraph>Erkek</Paragraph>
                     </View>
                     <View style={styles.genderOption}>
-                      <RadioButton value=\"female\" />
-                      <Paragraph>Kız</Paragraph>
+                      <RadioButton value="female" />
+                      <Paragraph>Kiz</Paragraph>
                     </View>
                   </View>
                 </RadioButton.Group>
@@ -246,67 +246,52 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
               <Divider style={styles.divider} />
 
-              {/* Sınıf Seçimi */}
               <View style={styles.classSection}>
-                <Paragraph style={styles.classLabel}>Sınıf</Paragraph>
+                <Paragraph style={styles.classLabel}>Sinif</Paragraph>
                 {loadingClasses ? (
-                  <Paragraph>Sınıflar yükleniyor...</Paragraph>
+                  <Paragraph>Siniflar yukleniyor...</Paragraph>
                 ) : (
                   <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={classId}
-                      onValueChange={handleClassChange}
-                      style={styles.picker}
-                    >
-                      <Picker.Item label=\"Sınıf seçin\" value={0} />
-                      {classes.map((classItem) => (
-                        <Picker.Item
-                          key={classItem.id}
-                          label={classItem.name}
-                          value={classItem.id}
-                        />
+                    <Picker selectedValue={classId} onValueChange={handleClassChange} style={styles.picker}>
+                      <Picker.Item label="Sinif secin" value="" />
+                      {classes.map((item) => (
+                        <Picker.Item key={item.id} label={item.name} value={item.id} />
                       ))}
                     </Picker>
                   </View>
                 )}
-                <HelperText type=\"error\" visible={!!errors.classId}>
+                <HelperText type="error" visible={Boolean(errors.classId)}>
                   {errors.classId}
                 </HelperText>
               </View>
 
-              {/* Genel Hata */}
-              <HelperText type=\"error\" visible={!!errors.general}>
+              <HelperText type="error" visible={Boolean(errors.general)}>
                 {errors.general}
               </HelperText>
-              
+
               <Button
-                mode=\"contained\"
+                mode="contained"
                 onPress={handleRegister}
                 loading={loading}
                 disabled={loading || loadingClasses}
                 style={styles.button}
                 contentStyle={styles.buttonContent}
               >
-                Kayıt Ol
+                Kayit Ol
               </Button>
             </Card.Content>
           </Card>
 
           <View style={styles.loginSection}>
-            <Paragraph style={styles.loginText}>
-              Zaten hesabınız var mı?
-            </Paragraph>
-            <Button
-              mode=\"text\"
-              onPress={() => navigation.navigate('Login')}
-              disabled={loading}
-            >
-              Giriş Yap
+            <Paragraph style={styles.loginText}>Zaten hesabiniz var mi?</Paragraph>
+            <Button mode="text" onPress={() => navigation.navigate('Login')} disabled={loading}>
+              Giris Yap
             </Button>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -314,6 +299,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  flex: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,

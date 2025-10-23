@@ -1,413 +1,230 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  Alert,
-  TouchableOpacity,
-} from 'react-native';
-import {
-  Title,
-  Paragraph,
-  Card,
-  useTheme,
   ActivityIndicator,
   Button,
+  Card,
   Chip,
-  Surface,
-  ProgressBar,
-  List,
-  Divider,
+  Paragraph,
+  Title,
 } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useFocusEffect } from '@react-navigation/native';
 import contentService from '../../services/contentService';
-import { Subject, Topic, UserTopicProgress } from '../../types/content';
-import { useAuth } from '../../contexts/AuthContext';
+import { Subject, Topic } from '../../types/content';
 
-interface SubjectsScreenProps {
-  navigation: any;
-}
-
-interface SubjectWithTopics extends Subject {
-  topics: Topic[];
-  progress: {
-    total: number;
+interface SubjectDetail {
+  subject: Subject;
+  stats: {
     learned: number;
     inProgress: number;
+    needsReview: number;
+    notStarted: number;
   };
+  nextTopics: Topic[];
 }
 
-const SubjectsScreen: React.FC<SubjectsScreenProps> = ({ navigation }) => {
-  const theme = useTheme();
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [subjects, setSubjects] = useState<SubjectWithTopics[]>([]);
-  const [expandedSubjects, setExpandedSubjects] = useState<Set<number>>(new Set());
-  const [error, setError] = useState('');
+const SubjectsScreen: React.FC = () => {
+  const [subjectDetails, setSubjectDetails] = useState<SubjectDetail[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    loadSubjectsAndTopics();
-  }, []);
-
-  const loadSubjectsAndTopics = async () => {
+  const loadSubjects = useCallback(async () => {
     try {
-      setLoading(true);
-      setError('');
-      
-      // Kullanıcının sınıfına göre konuları getir
-      const [subjectsData, topicsData] = await Promise.all([
+      setIsLoading(true);
+      const [subjects, topics, progress] = await Promise.all([
         contentService.getSubjects(),
         contentService.getTopicsForUser(),
+        contentService.getUserProgress(),
       ]);
 
-      // Konuları derse göre grupla
-      const subjectsWithTopics: SubjectWithTopics[] = subjectsData
-        .filter(subject => subject.isActive)
-        .map(subject => {
-          const subjectTopics = topicsData.filter(topic => 
-            topic.subjectId === subject.id && topic.isActive
-          );
-          
-          // İlerleme hesapla
-          const progress = {
-            total: subjectTopics.length,
-            learned: 0, // API'dan gelecek
-            inProgress: 0, // API'dan gelecek
-          };
+      const statusMap = new Map<string, string>();
+      const safeProgress = progress.filter(
+        (item) => typeof item.topicId === 'string' && item.topicId.length > 0,
+      ) as Array<typeof progress[number] & { topicId: string }>;
+      safeProgress.forEach((item) => {
+        statusMap.set(item.topicId, item.status);
+      });
 
-          return {
-            ...subject,
-            topics: subjectTopics,
-            progress,
-          };
-        })
-        .filter(subject => subject.topics.length > 0);
+      const details: SubjectDetail[] = subjects.map((subject) => {
+        const subjectTopics = topics.filter((topic) => topic.subjectId === subject.id);
+        const stats = {
+          learned: 0,
+          inProgress: 0,
+          needsReview: 0,
+          notStarted: 0,
+        };
 
-      setSubjects(subjectsWithTopics);
-    } catch (error: any) {
-      console.error('Subjects loading error:', error);
-      setError('Dersler yüklenirken hata oluştu');
+        const annotatedTopics = subjectTopics.map((topic) => {
+          const topicId = topic.id ?? '';
+          const status = topicId ? statusMap.get(topicId) || 'not_started' : 'not_started';
+          if (status === 'learned') stats.learned += 1;
+          else if (status === 'in_progress') stats.inProgress += 1;
+          else if (status === 'needs_review') stats.needsReview += 1;
+          else stats.notStarted += 1;
+          return { ...topic, id: topicId, status } as Topic;
+        });
+
+        const nextTopics = annotatedTopics
+          .filter((topic) => topic.status !== 'learned')
+          .slice(0, 3);
+
+        return {
+          subject,
+          stats,
+          nextTopics,
+        };
+      });
+
+      setSubjectDetails(details);
+    } catch (error) {
+      console.error('Subjects load error:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  };
+  }, []);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadSubjectsAndTopics();
-    setRefreshing(false);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      loadSubjects();
+    }, [loadSubjects]),
+  );
 
-  const toggleSubject = (subjectId: number) => {
-    const newExpanded = new Set(expandedSubjects);
-    if (newExpanded.has(subjectId)) {
-      newExpanded.delete(subjectId);
-    } else {
-      newExpanded.add(subjectId);
-    }
-    setExpandedSubjects(newExpanded);
-  };
-
-  const markTopicProgress = async (
-    topicId: number, 
-    status: 'not_started' | 'in_progress' | 'learned' | 'needs_review'
-  ) => {
+  const handleMarkLearned = async (topicId: string) => {
+    if (!topicId) return;
     try {
-      await contentService.markTopicProgress(topicId, status);
-      // İlerlemeleri yeniden yükle
-      await loadSubjectsAndTopics();
-    } catch (error: any) {
-      Alert.alert('Hata', 'Konu durumu güncellenirken hata oluştu');
+      await contentService.markTopicProgress(topicId, 'learned');
+      await loadSubjects();
+    } catch (error) {
+      console.error('Topic progress update error:', error);
     }
   };
-
-  const getProgressPercentage = (progress: any) => {
-    if (progress.total === 0) return 0;
-    return Math.round(((progress.learned + progress.inProgress * 0.5) / progress.total) * 100);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'learned': return '#4CAF50';
-      case 'in_progress': return '#FF9800';
-      case 'needs_review': return '#F44336';
-      default: return '#9E9E9E';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'learned': return 'Öğrenildi';
-      case 'in_progress': return 'Devam Ediyor';
-      case 'needs_review': return 'Tekrar Gerekli';
-      default: return 'Başlanmadı';
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Paragraph style={styles.loadingText}>Dersler yükleniyor...</Paragraph>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Icon name="error-outline" size={48} color="#F44336" />
-        <Paragraph style={styles.errorText}>{error}</Paragraph>
-        <Button mode="contained" onPress={loadSubjectsAndTopics}>
-          Tekrar Dene
-        </Button>
-      </View>
-    );
-  }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+    <SafeAreaView
+      style={[styles.safeArea, { paddingTop: insets.top }]}
+      edges={['top', 'right', 'left']}
     >
-      {/* Genel İlerleme */}
-      <Card style={styles.overallCard}>
-        <Card.Content>
-          <Title style={styles.overallTitle}>Genel İlerleme</Title>
-          <Paragraph style={styles.className}>{user?.className}</Paragraph>
-          <View style={styles.overallStats}>
-            <Chip mode="outlined" icon="school">
-              {subjects.length} Ders
-            </Chip>
-            <Chip mode="outlined" icon="list">
-              {subjects.reduce((total, subject) => total + subject.topics.length, 0)} Konu
-            </Chip>
-          </View>
-        </Card.Content>
-      </Card>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          { paddingBottom: insets.bottom + 32 },
+        ]}
+      >
+        <Title style={styles.title}>Odak alanlarin</Title>
+        <Paragraph style={styles.paragraph}>
+          Her ders icin ilerlemeni takip et. Henuz tamamlanmamis konulari isaretleyerek yapay zekanin onerilerini guncel tutabilirsin.
+        </Paragraph>
 
-      {/* Dersler Listesi */}
-      {subjects.map((subject) => {
-        const isExpanded = expandedSubjects.has(subject.id);
-        const progressPercent = getProgressPercentage(subject.progress);
-        
-        return (
-          <Card key={subject.id} style={styles.subjectCard}>
-            <TouchableOpacity onPress={() => toggleSubject(subject.id)}>
+        {isLoading ? (
+          <ActivityIndicator />
+        ) : subjectDetails.length === 0 ? (
+          <Paragraph style={styles.muted}>
+            Ders verisi bulunamadi. Program yoneticisinden iceriklerin aktari oldugundan emin ol.
+          </Paragraph>
+        ) : (
+          subjectDetails.map(({ subject, stats, nextTopics }) => (
+            <Card key={subject.id} style={styles.card}>
+              <Card.Title title={subject.name} />
               <Card.Content>
-                <View style={styles.subjectHeader}>
-                  <View style={styles.subjectInfo}>
-                    <Title style={styles.subjectTitle}>{subject.name}</Title>
-                    <Paragraph style={styles.subjectStats}>
-                      {subject.topics.length} konu • {progressPercent}% tamamlandı
-                    </Paragraph>
-                  </View>
-                  <Icon 
-                    name={isExpanded ? 'expand-less' : 'expand-more'} 
-                    size={24} 
-                    color={theme.colors.primary}
-                  />
+                <View style={styles.chipRow}>
+                  <Chip icon="check" style={styles.chip}>
+                    Ogrenilen: {stats.learned}
+                  </Chip>
+                  <Chip icon="play-circle" style={styles.chip}>
+                    Devam: {stats.inProgress}
+                  </Chip>
+                  <Chip icon="refresh" style={styles.chip}>
+                    Tekrar: {stats.needsReview}
+                  </Chip>
+                  <Chip icon="dots-horizontal" style={styles.chip}>
+                    Baslanmadi: {stats.notStarted}
+                  </Chip>
                 </View>
-                
-                <ProgressBar 
-                  progress={progressPercent / 100} 
-                  style={styles.subjectProgress}
-                  color={theme.colors.primary}
-                />
+                {nextTopics.length ? (
+                  <>
+                    <Paragraph style={styles.subTitle}>Sonraki adimlar</Paragraph>
+                    {nextTopics.map((topic) => (
+                      <View key={topic.id} style={styles.topicRow}>
+                        <Paragraph style={styles.topicTitle}>{topic.name}</Paragraph>
+                        <Button
+                          mode="text"
+                          onPress={() => handleMarkLearned(topic.id)}
+                          compact
+                        >
+                          Ogrendim
+                        </Button>
+                      </View>
+                    ))}
+                  </>
+                ) : (
+                  <Paragraph style={styles.muted}>Bu derste tum konulari tamamladin!</Paragraph>
+                )}
               </Card.Content>
-            </TouchableOpacity>
-
-            {isExpanded && (
-              <View style={styles.topicsContainer}>
-                <Divider />
-                {subject.topics.map((topic, index) => (
-                  <Surface key={topic.id} style={styles.topicItem}>
-                    <View style={styles.topicContent}>
-                      <View style={styles.topicInfo}>
-                        <Paragraph style={styles.topicName}>{topic.name}</Paragraph>
-                        {topic.parentName && (
-                          <Paragraph style={styles.parentTopic}>
-                            Alt konu: {topic.parentName}
-                          </Paragraph>
-                        )}
-                      </View>
-                      <View style={styles.topicActions}>
-                        <TouchableOpacity
-                          style={[
-                            styles.statusButton,
-                            { backgroundColor: getStatusColor('not_started') }
-                          ]}
-                          onPress={() => markTopicProgress(topic.id, 'in_progress')}
-                        >
-                          <Icon name="play-arrow" size={16} color="white" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.statusButton,
-                            { backgroundColor: getStatusColor('learned') }
-                          ]}
-                          onPress={() => markTopicProgress(topic.id, 'learned')}
-                        >
-                          <Icon name="check" size={16} color="white" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Surface>
-                ))}
-              </View>
-            )}
-          </Card>
-        );
-      })}
-
-      {subjects.length === 0 && (
-        <Card style={styles.emptyCard}>
-          <Card.Content style={styles.emptyContent}>
-            <Icon name="school" size={64} color="#ccc" />
-            <Title style={styles.emptyTitle}>Henüz ders bulunamadı</Title>
-            <Paragraph style={styles.emptyText}>
-              Sınıfınız için ders ve konular henüz eklenmemiş.
-            </Paragraph>
-          </Card.Content>
-        </Card>
-      )}
-
-      <View style={styles.bottomSpace} />
-    </ScrollView>
+            </Card>
+          ))
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
+  container: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 16,
   },
-  loadingText: {
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  errorText: {
-    textAlign: 'center',
-    marginVertical: 16,
-    color: '#F44336',
-  },
-  overallCard: {
-    margin: 16,
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
     marginBottom: 8,
-    elevation: 4,
   },
-  overallTitle: {
-    fontSize: 20,
-    marginBottom: 4,
+  paragraph: {
+    fontSize: 15,
+    color: '#555',
+    marginBottom: 16,
   },
-  className: {
-    color: '#666',
-    marginBottom: 12,
-  },
-  overallStats: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  subjectCard: {
-    margin: 16,
-    marginBottom: 8,
-    elevation: 4,
-  },
-  subjectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  subjectInfo: {
-    flex: 1,
-  },
-  subjectTitle: {
-    fontSize: 18,
-    marginBottom: 4,
-  },
-  subjectStats: {
-    fontSize: 14,
-    color: '#666',
-  },
-  subjectProgress: {
-    height: 6,
-    borderRadius: 3,
-  },
-  topicsContainer: {
-    backgroundColor: '#f8f8f8',
-  },
-  topicItem: {
-    marginHorizontal: 16,
-    marginVertical: 4,
-    padding: 12,
-    borderRadius: 8,
-    elevation: 1,
-  },
-  topicContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  topicInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  topicName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  parentTopic: {
-    fontSize: 12,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  topicActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  statusButton: {
-    width: 32,
-    height: 32,
+  card: {
+    marginBottom: 16,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    elevation: 1,
+    backgroundColor: '#ffffff',
   },
-  emptyCard: {
-    margin: 16,
-    elevation: 4,
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
   },
-  emptyContent: {
-    alignItems: 'center',
-    padding: 32,
+  chip: {
+    marginBottom: 6,
   },
-  emptyTitle: {
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  emptyText: {
+  subTitle: {
+    fontSize: 15,
+    fontWeight: '600',
     marginTop: 8,
-    textAlign: 'center',
-    color: '#666',
+    marginBottom: 4,
   },
-  bottomSpace: {
-    height: 32,
+  topicRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  topicTitle: {
+    flex: 1,
+    marginRight: 8,
+    color: '#444',
+  },
+  muted: {
+    color: '#777',
+    fontStyle: 'italic',
+    marginBottom: 12,
   },
 });
 

@@ -10,6 +10,12 @@ export type AuthStackParamList = {
   SMSVerification: {
     phoneNumber: string;
     isLogin: boolean;
+    registrationData?: {
+      name: string;
+      surname: string;
+      classId: string;
+      gender: 'male' | 'female';
+    };
   };
 };
 
@@ -18,7 +24,7 @@ const Stack = createStackNavigator<AuthStackParamList>();
 const AuthNavigator: React.FC = () => {
   return (
     <Stack.Navigator
-      initialRouteName=\"Login\"
+      initialRouteName="Login"
       screenOptions={{
         headerStyle: {
           backgroundColor: '#6200ee',
@@ -29,28 +35,27 @@ const AuthNavigator: React.FC = () => {
         },
       }}
     >
-      <Stack.Screen 
-        name=\"Login\" 
+      <Stack.Screen
+        name="Login"
         component={LoginScreen}
         options={{
-          title: 'Giriş Yap',
+          title: 'Giris Yap',
           headerShown: false,
         }}
       />
-      <Stack.Screen 
-        name=\"Register\" 
+      <Stack.Screen
+        name="Register"
         component={RegisterScreen}
         options={{
-          title: 'Kayıt Ol',
+          title: 'Kayit Ol',
           headerShown: false,
         }}
       />
-      <Stack.Screen 
-        name=\"SMSVerification\" 
+      <Stack.Screen
+        name="SMSVerification"
         component={SMSVerificationScreen}
         options={{
-          title: 'SMS Doğrulama',
-          headerBackTitleVisible: false,
+          title: 'SMS Dogrulama',
         }}
       />
     </Stack.Navigator>
